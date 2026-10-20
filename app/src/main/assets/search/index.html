@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
+<title>Arama</title>
+<style>
+  :root { --bg:#f5f6fa; --surface:#ffffff; --border:#e4e6ef; --text:#202133; --text-dim:#7a7d94; --accent:#5b5bf0; }
+  [data-theme="true"] { --bg:#0f0f14; --surface:#1a1a24; --border:#2a2a3a; --text:#e8e8ee; --text-dim:#8a8a9a; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; min-height: 100%; background: var(--bg); color: var(--text); font-family: -apple-system, Roboto, "Segoe UI", Arial, sans-serif; }
+  .topbar { display: flex; align-items: center; gap: 10px; padding: 14px 16px; background: var(--surface); border-bottom: 1px solid var(--border); }
+  .topbar .mark { width: 26px; height: 26px; flex-shrink: 0; }
+  form.search {
+    flex: 1; height: 42px; background: var(--bg); border: 1px solid var(--border); border-radius: 999px;
+    display: flex; align-items: center; padding: 0 14px; gap: 8px;
+  }
+  form.search input { flex: 1; border: none; outline: none; background: transparent; font-size: 14px; color: var(--text); }
+  form.search svg { width: 16px; height: 16px; stroke: var(--text-dim); fill: none; stroke-width: 2; }
+
+  .results { max-width: 640px; margin: 0 auto; padding: 16px; }
+  .result-card {
+    background: var(--surface); border: 1px solid var(--border); border-radius: 14px;
+    padding: 14px 16px; margin-bottom: 12px; text-decoration: none; display: block; color: inherit;
+    transition: box-shadow .15s ease, transform .15s ease;
+  }
+  .result-card:active { transform: scale(.99); }
+  .result-url { font-size: 11.5px; color: #23a55a; margin-bottom: 4px; word-break: break-all; }
+  .result-title { font-size: 15px; font-weight: 700; color: var(--accent); margin-bottom: 4px; }
+  .result-snippet { font-size: 13px; color: var(--text-dim); line-height: 1.4; }
+
+  .state { text-align: center; color: var(--text-dim); font-size: 13.5px; margin-top: 60px; padding: 0 24px; line-height: 1.6; }
+  .spinner {
+    width: 30px; height: 30px; margin: 0 auto 14px auto; border-radius: 50%;
+    border: 3px solid var(--border); border-top-color: var(--accent);
+    animation: spin 0.8s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+</style>
+</head>
+<body>
+  <div class="topbar">
+    <svg class="mark" viewBox="0 0 108 108">
+      <defs><linearGradient id="g1" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#5b5bf0"/><stop offset="1" stop-color="#7a4fe0"/></linearGradient></defs>
+      <path d="M54,30 L32,72" stroke="url(#g1)" stroke-width="7" stroke-linecap="round"/>
+      <path d="M32,72 L76,72" stroke="url(#g1)" stroke-width="7" stroke-linecap="round"/>
+      <path d="M76,72 L54,30" stroke="url(#g1)" stroke-width="7" stroke-linecap="round"/>
+      <path fill="url(#g1)" d="M54,22 L62,30 L54,38 L46,30 Z"/>
+      <path fill="url(#g1)" d="M32,64 L40,72 L32,80 L24,72 Z"/>
+      <path fill="url(#g1)" d="M76,64 L84,72 L76,80 L68,72 Z"/>
+    </svg>
+    <form class="search" id="searchForm">
+      <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
+      <input type="text" id="q" autocomplete="off" />
+    </form>
+  </div>
+
+  <div class="results" id="results">
+    <div class="state"><div class="spinner"></div>Aranıyor…</div>
+  </div>
+
+  <script>
+    function getQuery() {
+      const m = window.location.search.match(/[?&]q=([^&]+)/);
+      return m ? decodeURIComponent(m[1].replace(/\+/g, ' ')) : '';
+    }
+    function escapeHtml(s) {
+      return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+    }
+
+    const query = getQuery();
+    document.getElementById('q').value = query;
+    document.getElementById('searchForm').addEventListener('submit', function (e) {
+      e.preventDefault();
+      const v = document.getElementById('q').value.trim();
+      if (v) window.location.href = 'file:///android_asset/search/index.html?q=' + encodeURIComponent(v);
+    });
+
+    window.NexusSearch = {
+      onResults(raw) {
+        const box = document.getElementById('results');
+        if (raw === 'NOKEY') {
+          box.innerHTML = '<div class="state">Markalı arama sonuçları için Menü → Arama Ayarları\'ndan bir Google Custom Search anahtarı ekleyin.<br><br>Şimdilik normal aramaya yönlendiriliyor…</div>';
+          setTimeout(() => { window.location.href = 'https://www.google.com/search?q=' + encodeURIComponent(query); }, 1200);
+          return;
+        }
+        if (raw.startsWith('ERROR:')) {
+          box.innerHTML = '<div class="state">Arama sırasında bir sorun oluştu.<br>' + escapeHtml(raw.slice(6, 200)) + '</div>';
+          return;
+        }
+        try {
+          const data = JSON.parse(raw);
+          const items = data.items || [];
+          if (!items.length) { box.innerHTML = '<div class="state">Sonuç bulunamadı</div>'; return; }
+          box.innerHTML = items.map(it => `
+            <a class="result-card" href="${escapeHtml(it.link)}">
+              <div class="result-url">${escapeHtml(it.displayLink || it.link)}</div>
+              <div class="result-title">${escapeHtml(it.title || '')}</div>
+              <div class="result-snippet">${escapeHtml(it.snippet || '')}</div>
+            </a>
+          `).join('');
+        } catch (e) {
+          box.innerHTML = '<div class="state">Sonuçlar okunamadı</div>';
+        }
+      }
+    };
+
+    if (query && window.AndroidHost) {
+      const tabId = window.AndroidHost.getActiveTabId();
+      window.AndroidHost.performSearch(tabId, query);
+    }
+  </script>
+</body>
+</html>
