@@ -141,13 +141,11 @@ function setHeader(title, showBack) {
 function setBody(html) {
   el.body.style.opacity = '0';
   el.body.style.transform = 'translateY(6px)';
-  setTimeout(() => {
-    el.body.innerHTML = html;
-    requestAnimationFrame(() => {
-      el.body.style.opacity = '1';
-      el.body.style.transform = 'translateY(0)';
-    });
-  }, 90);
+  el.body.innerHTML = html;
+  requestAnimationFrame(() => {
+    el.body.style.opacity = '1';
+    el.body.style.transform = 'translateY(0)';
+  });
 }
 
 let navStack = ['settings'];

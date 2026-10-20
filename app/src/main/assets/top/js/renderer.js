@@ -71,8 +71,8 @@ function isLikelyUrl(input) {
 }
 function toUrl(input) {
   if (isLikelyUrl(input)) return /^[a-z][a-z0-9+.-]*:\/\//i.test(input) ? input : 'https://' + input;
-  if (customSearchEnabled) return LOCAL_SEARCH_PAGE + encodeURIComponent(input);
-  return (SEARCH_URLS[window.searchEngine] || SEARCH_URLS.google) + encodeURIComponent(input);
+  // Her zaman yerel Nexus arama sayfası — asla google.com'a yönlendirme yapma
+  return LOCAL_SEARCH_PAGE + encodeURIComponent(input);
 }
 
 function createTab(isPrivate) {

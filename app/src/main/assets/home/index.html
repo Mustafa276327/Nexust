@@ -121,10 +121,7 @@
     document.getElementById('searchForm').addEventListener('submit', function () {
       var q = document.getElementById('q').value.trim();
       if (!q) return;
-      var engine = 'google';
-      try { engine = JSON.parse(window.AndroidHost.getSettingsJson()).searchEngine || 'google'; } catch (e) {}
-      var urls = { google: 'https://www.google.com/search?q=', duckduckgo: 'https://duckduckgo.com/?q=', bing: 'https://www.bing.com/search?q=' };
-      window.location.href = (urls[engine] || urls.google) + encodeURIComponent(q);
+      window.location.href = 'file:///android_asset/search/index.html?q=' + encodeURIComponent(q);
     });
 
     // ---- Hafif, zarif animasyonlu arka plan (yumuşak renkli daireler) ----
