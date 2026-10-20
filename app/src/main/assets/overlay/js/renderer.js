@@ -604,7 +604,7 @@ function renderSearchSettings() {
       <input id="csCx" placeholder="Arama motoru kimliği (cx)" value="${escapeHtml(s.customSearchCx || '')}" />
       <button class="primary-btn" id="saveCsBtn">Kaydet</button>
     </div>
-    <div class="empty" style="margin:0;">Bu ikisi girilince arama sonuçları Google'a gitmeden, kendi tasarımımızda gösterilir; veri yine Google'dan gelir. Boş bırakırsan arama normal şekilde çalışmaya devam eder.</div>
+    <div class="empty" style="margin:0;">API anahtarı ve cx girilince arama sonuçları Google Custom Search'ten gelir ve Nexus tasarımında gösterilir. Boş bırakırsan arama sonuçsuz görünür ("API anahtarı ve cx girin" uyarısı).</div>
   `);
   document.getElementById('searchEngine').addEventListener('change', (e) => {
     setSetting('searchEngine', e.target.value);

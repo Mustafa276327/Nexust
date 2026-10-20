@@ -70,6 +70,9 @@
 
     const query = getQuery();
     document.getElementById('q').value = query;
+    if (!query) {
+      document.getElementById('results').innerHTML = '<div class="state">Aramak için yukarıya bir şey yazın</div>';
+    }
     document.getElementById('searchForm').addEventListener('submit', function (e) {
       e.preventDefault();
       const v = document.getElementById('q').value.trim();
@@ -78,13 +81,19 @@
 
     window.NexusSearch = {
       onResults(raw) {
+        gotResults = true;
         const box = document.getElementById('results');
         if (raw === 'NOKEY') {
-          box.innerHTML = '<div class="state">Bu cihazda arama motoru anahtarı ayarlanmamış.<br><br>Aşağıdan doğrudan bir siteye gidebilirsiniz.</div>';
+          box.innerHTML = '<div class="state">Menü → Arama Ayarları bölümünden API anahtarı ve cx girin.</div>';
           return;
         }
         if (raw.startsWith('ERROR:')) {
-          box.innerHTML = '<div class="state">Arama sırasında bir sorun oluştu.<br>' + escapeHtml(raw.slice(6, 200)) + '</div>';
+          let msg = raw.slice(6);
+          try {
+            const errJson = JSON.parse(msg);
+            if (errJson.error && errJson.error.message) msg = errJson.error.message;
+          } catch (e) {}
+          box.innerHTML = '<div class="state">Arama sırasında bir sorun oluştu.<br>' + escapeHtml(msg) + '</div>';
           return;
         }
         try {
@@ -104,10 +113,16 @@
       }
     };
 
-    if (query && window.AndroidHost) {
-      const tabId = window.AndroidHost.getActiveTabId();
-      window.AndroidHost.performSearch(tabId, query);
-    }
+    // Arama sayfası yüklendiğinde arama Kotlin tarafında (TabManager.onPageFinished) başlatılır.
+    // window.AndroidHost artık buradan çağrılmaz.
+
+    let gotResults = false;
+    setTimeout(() => {
+      if (!gotResults) {
+        document.getElementById('results').innerHTML = '<div class="state">Yanıt alınamadı. Lütfen tekrar deneyin.</div>';
+      }
+    }, 20000);
+
   </script>
 </body>
 </html>
