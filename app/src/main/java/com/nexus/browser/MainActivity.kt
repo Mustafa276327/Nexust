@@ -426,7 +426,7 @@ class MainActivity : Activity() {
             val cx = s.optString("customSearchCx", "")
             if (key.isBlank() || cx.isBlank()) {
                 runOnUiThread {
-                    tabManager.tabs[tabId]?.webView?.evaluateJavascript("window.NexusSearch && NexusSearch.onResults(${jsStr("NOKEY")})", null)
+                    tabManager.tabs[tabId]?.webView?.evaluateJavascript("window.NexusSearch && NexusSearch.onResults(${jsStr("{\"items\":[]})")), null)
                 }
                 return
             }
