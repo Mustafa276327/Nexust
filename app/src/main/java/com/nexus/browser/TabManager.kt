@@ -6,6 +6,7 @@ import android.content.Context
 import android.graphics.Bitmap
 import android.net.Uri
 import java.security.SecureRandom
+import java.util.LinkedList
 import android.view.View
 import android.webkit.WebChromeClient
 import android.webkit.ConsoleMessage

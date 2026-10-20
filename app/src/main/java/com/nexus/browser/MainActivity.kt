@@ -43,153 +43,142 @@ import java.util.UUID
 
 private const val APP_VERSION_CODE = 3
 
-// NEXUS köprüsü (Companion App) bildirim kanalları
-private const val NEXUS_KANAL = "nexus_bridge"
-private const val NEXUS_KANAL_YUKSEK = "nexus_bridge_yuksek"
-
-
-// =========================================================
-// NEXUS KÖPRÜSÜ (Companion App ↔ NEXUS web panel)
-// - Periyodik cihaz bilgisi: /api/cihaz_bilgisi (X-Token ile)
-// - Bildirim polling: /api/bildirimler → gerçek Android bildirimi
-// =========================================================
-
-private fun nexusKanallariOlustur() {
-    try {
-        val nm = getSystemService(NotificationManager::class.java)
-        nm.createNotificationChannel(NotificationChannel(NEXUS_KANAL, "NEXUS Bildirimleri", NotificationManager.IMPORTANCE_DEFAULT))
-        nm.createNotificationChannel(NotificationChannel(NEXUS_KANAL_YUKSEK, "NEXUS Bildirimleri (Yüksek)", NotificationManager.IMPORTANCE_HIGH))
-    } catch (e: Exception) { }
-    // Android 13+ bildirim izni
-    if (Build.VERSION.SDK_INT >= 33 &&
-        checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
-        try { requestPermissions(arrayOf(Manifest.permission.POST_NOTIFICATIONS), 1001) } catch (e: Exception) { }
-    }
-}
-
-private fun nexusAyar(): Pair<String, String> {
-    val s = settingsManager.getSettingsObj()
-    val url = s.optString("nexusUrl", "http://127.0.0.1:8080").trim().trimEnd('/')
-    val token = s.optString("nexusToken", "").trim()
-    return Pair(url, token)
-}
-
-private fun nexusPost(url: String, token: String, path: String, body: String): Int {
-    val conn = URL(url + path).openConnection() as HttpURLConnection
-    conn.requestMethod = "POST"
-    conn.setRequestProperty("X-Token", token)
-    conn.setRequestProperty("Content-Type", "application/json")
-    conn.doOutput = true
-    conn.connectTimeout = 6000
-    conn.readTimeout = 6000
-    conn.outputStream.use { it.write(body.toByteArray(Charsets.UTF_8)) }
-    val code = conn.responseCode
-    conn.disconnect()
-    return code
-}
-
-private fun nexusCihazBilgisiGonder(url: String, token: String) {
-    try {
-        var pilYuzde = -1
-        var sarj = false
-        try {
-            val bi = registerReceiver(null, IntentFilter(Intent.ACTION_BATTERY_CHANGED))
-            if (bi != null) {
-                val level = bi.getIntExtra(BatteryManager.EXTRA_LEVEL, -1)
-                val scale = bi.getIntExtra(BatteryManager.EXTRA_SCALE, 100)
-                if (level >= 0 && scale > 0) pilYuzde = level * 100 / scale
-                val durum = bi.getIntExtra(BatteryManager.EXTRA_STATUS, -1)
-                sarj = durum == BatteryManager.BATTERY_STATUS_CHARGING || durum == BatteryManager.BATTERY_STATUS_FULL
-            }
-        } catch (e: Exception) { }
-        var bosMb = -1L
-        try {
-            val st = android.os.StatFs(Environment.getDataDirectory().path)
-            bosMb = st.availableBytes / (1024 * 1024)
-        } catch (e: Exception) { }
-        val govde = JSONObject().apply {
-            put("pil_yuzde", pilYuzde)
-            put("sarj_oluyor", sarj)
-            put("model", Build.MODEL ?: "?")
-            put("android_surumu", Build.VERSION.RELEASE ?: "?")
-            put("bos_depolama_mb", bosMb)
-        }.toString()
-        nexusPost(url, token, "/api/cihaz_bilgisi", govde)
-    } catch (e: Exception) { /* sessizce yoksay — köprü asla çökmemeli */ }
-}
-
-private fun nexusBildirimGoster(id: Int, baslik: String, icerik: String, oncelik: String) {
-    try {
-        val nm = getSystemService(NotificationManager::class.java)
-        val kanal = if (oncelik == "yuksek") NEXUS_KANAL_YUKSEK else NEXUS_KANAL
-        val n = Notification.Builder(this, kanal)
-            .setSmallIcon(android.R.drawable.stat_notify_chat)
-            .setContentTitle(baslik.ifBlank { "NEXUS" })
-            .setContentText(icerik)
-            .setStyle(Notification.BigTextStyle().bigText(icerik))
-            .setAutoCancel(true)
-            .build()
-        nm.notify(10000 + id, n)
-    } catch (e: Exception) { }
-}
-
-private fun nexusBildirimleriCek(url: String, token: String) {
-    val conn = URL("$url/api/bildirimler").openConnection() as HttpURLConnection
-    conn.setRequestProperty("X-Token", token)
-    conn.connectTimeout = 6000
-    conn.readTimeout = 6000
-    val code = conn.responseCode
-    if (code != 200) { conn.disconnect(); return }
-    val text = conn.inputStream.bufferedReader().use { it.readText() }
-    conn.disconnect()
-    val arr = try { JSONObject(text).getJSONArray("bildirimler") } catch (e: Exception) { return }
-    if (arr.length() == 0) return
-    val ids = JSONArray()
-    for (i in 0 until arr.length()) {
-        val o = arr.getJSONObject(i)
-        ids.put(o.optInt("id"))
-        nexusBildirimGoster(
-            o.optInt("id"),
-            o.optString("baslik", "NEXUS"),
-            o.optString("icerik", ""),
-            o.optString("oncelik", "normal")
-        )
-    }
-    // Gösterilenleri onayla — tekrar tekrar gösterilmesin
-    nexusPost(url, token, "/api/bildirimler_onayla", JSONObject().apply { put("ids", ids) }.toString())
-}
-
-private fun nexusKopruDongusu() {
-    var adim = 0
-    while (true) {
-        try {
-            val s = settingsManager.getSettingsObj()
-            if (s.optBoolean("nexusSync", true)) {
-                val (url, token) = nexusAyar()
-                if (token.isNotBlank()) {
-                    if (adim % 6 == 0) nexusCihazBilgisiGonder(url, token)
-                    nexusBildirimleriCek(url, token)
-                }
-            }
-        } catch (e: Exception) { /* köprü hataları uygulamayı etkilememeli */ }
-        adim++
-        try { Thread.sleep(30_000) } catch (e: InterruptedException) { return }
-    }
-}
-
-
-// ---------- Faz 3/4: Groq AI çağrısı ----------
-        conn.outputStream.use { it.write(body.toString().toByteArray(Charsets.UTF_8)) }
-        val code = conn.responseCode
-        val stream = if (code in 200..299) conn.inputStream else conn.errorStream
-        val text = stream.bufferedReader().use { it.readText() }
-        conn.disconnect()
-        if (code !in 200..299) return "HATA ($code): $text"
-        JSONObject(text).getJSONArray("choices").getJSONObject(0).getJSONObject("message").getString("content")
-    } catch (e: Exception) { "İstek başarısız: ${e.message}" }
-}
-
 class MainActivity : Activity() {
+
+    // NEXUS köprüsü (Companion App) bildirim kanalları
+    private const val NEXUS_KANAL = "nexus_bridge"
+    private const val NEXUS_KANAL_YUKSEK = "nexus_bridge_yuksek"
+
+
+    // =========================================================
+    // NEXUS KÖPRÜSÜ (Companion App ↔ NEXUS web panel)
+    // - Periyodik cihaz bilgisi: /api/cihaz_bilgisi (X-Token ile)
+    // - Bildirim polling: /api/bildirimler → gerçek Android bildirimi
+    // =========================================================
+
+    private fun nexusKanallariOlustur() {
+        try {
+            val nm = getSystemService(NotificationManager::class.java)
+            nm.createNotificationChannel(NotificationChannel(NEXUS_KANAL, "NEXUS Bildirimleri", NotificationManager.IMPORTANCE_DEFAULT))
+            nm.createNotificationChannel(NotificationChannel(NEXUS_KANAL_YUKSEK, "NEXUS Bildirimleri (Yüksek)", NotificationManager.IMPORTANCE_HIGH))
+        } catch (e: Exception) { }
+        // Android 13+ bildirim izni
+        if (Build.VERSION.SDK_INT >= 33 &&
+            checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
+            try { requestPermissions(arrayOf(Manifest.permission.POST_NOTIFICATIONS), 1001) } catch (e: Exception) { }
+        }
+    }
+
+    private fun nexusAyar(): Pair<String, String> {
+        val s = settingsManager.getSettingsObj()
+        val url = s.optString("nexusUrl", "http://127.0.0.1:8080").trim().trimEnd('/')
+        val token = s.optString("nexusToken", "").trim()
+        return Pair(url, token)
+    }
+
+    private fun nexusPost(url: String, token: String, path: String, body: String): Int {
+        val conn = URL(url + path).openConnection() as HttpURLConnection
+        conn.requestMethod = "POST"
+        conn.setRequestProperty("X-Token", token)
+        conn.setRequestProperty("Content-Type", "application/json")
+        conn.doOutput = true
+        conn.connectTimeout = 6000
+        conn.readTimeout = 6000
+        conn.outputStream.use { it.write(body.toByteArray(Charsets.UTF_8)) }
+        val code = conn.responseCode
+        conn.disconnect()
+        return code
+    }
+
+    private fun nexusCihazBilgisiGonder(url: String, token: String) {
+        try {
+            var pilYuzde = -1
+            var sarj = false
+            try {
+                val bi = registerReceiver(null, IntentFilter(Intent.ACTION_BATTERY_CHANGED))
+                if (bi != null) {
+                    val level = bi.getIntExtra(BatteryManager.EXTRA_LEVEL, -1)
+                    val scale = bi.getIntExtra(BatteryManager.EXTRA_SCALE, 100)
+                    if (level >= 0 && scale > 0) pilYuzde = level * 100 / scale
+                    val durum = bi.getIntExtra(BatteryManager.EXTRA_STATUS, -1)
+                    sarj = durum == BatteryManager.BATTERY_STATUS_CHARGING || durum == BatteryManager.BATTERY_STATUS_FULL
+                }
+            } catch (e: Exception) { }
+            var bosMb = -1L
+            try {
+                val st = android.os.StatFs(Environment.getDataDirectory().path)
+                bosMb = st.availableBytes / (1024 * 1024)
+            } catch (e: Exception) { }
+            val govde = JSONObject().apply {
+                put("pil_yuzde", pilYuzde)
+                put("sarj_oluyor", sarj)
+                put("model", Build.MODEL ?: "?")
+                put("android_surumu", Build.VERSION.RELEASE ?: "?")
+                put("bos_depolama_mb", bosMb)
+            }.toString()
+            nexusPost(url, token, "/api/cihaz_bilgisi", govde)
+        } catch (e: Exception) { /* sessizce yoksay — köprü asla çökmemeli */ }
+    }
+
+    private fun nexusBildirimGoster(id: Int, baslik: String, icerik: String, oncelik: String) {
+        try {
+            val nm = getSystemService(NotificationManager::class.java)
+            val kanal = if (oncelik == "yuksek") NEXUS_KANAL_YUKSEK else NEXUS_KANAL
+            val n = Notification.Builder(this, kanal)
+                .setSmallIcon(android.R.drawable.stat_notify_chat)
+                .setContentTitle(baslik.ifBlank { "NEXUS" })
+                .setContentText(icerik)
+                .setStyle(Notification.BigTextStyle().bigText(icerik))
+                .setAutoCancel(true)
+                .build()
+            nm.notify(10000 + id, n)
+        } catch (e: Exception) { }
+    }
+
+    private fun nexusBildirimleriCek(url: String, token: String) {
+        val conn = URL("$url/api/bildirimler").openConnection() as HttpURLConnection
+        conn.setRequestProperty("X-Token", token)
+        conn.connectTimeout = 6000
+        conn.readTimeout = 6000
+        val code = conn.responseCode
+        if (code != 200) { conn.disconnect(); return }
+        val text = conn.inputStream.bufferedReader().use { it.readText() }
+        conn.disconnect()
+        val arr = try { JSONObject(text).getJSONArray("bildirimler") } catch (e: Exception) { return }
+        if (arr.length() == 0) return
+        val ids = JSONArray()
+        for (i in 0 until arr.length()) {
+            val o = arr.getJSONObject(i)
+            ids.put(o.optInt("id"))
+            nexusBildirimGoster(
+                o.optInt("id"),
+                o.optString("baslik", "NEXUS"),
+                o.optString("icerik", ""),
+                o.optString("oncelik", "normal")
+            )
+        }
+        // Gösterilenleri onayla — tekrar tekrar gösterilmesin
+        nexusPost(url, token, "/api/bildirimler_onayla", JSONObject().apply { put("ids", ids) }.toString())
+    }
+
+    private fun nexusKopruDongusu() {
+        var adim = 0
+        while (true) {
+            try {
+                val s = settingsManager.getSettingsObj()
+                if (s.optBoolean("nexusSync", true)) {
+                    val (url, token) = nexusAyar()
+                    if (token.isNotBlank()) {
+                        if (adim % 6 == 0) nexusCihazBilgisiGonder(url, token)
+                        nexusBildirimleriCek(url, token)
+                    }
+                }
+            } catch (e: Exception) { /* köprü hataları uygulamayı etkilememeli */ }
+            adim++
+            try { Thread.sleep(30_000) } catch (e: InterruptedException) { return }
+        }
+    }
+
 
     private lateinit var topBar: WebView
     private lateinit var overlay: WebView
@@ -598,15 +587,15 @@ class MainActivity : Activity() {
         // ---- User-Agent ----
         @JavascriptInterface
         fun getCurrentUserAgent(tabId: String): String {
-            return tabManager.tabs[tabId]?.let { webViewController.getDefaultUserAgent(it) } ?: ""
+            return tabManager.tabs[tabId]?.webView?.let { webViewController.getDefaultUserAgent(it) } ?: ""
         }
         @JavascriptInterface
         fun setDesktopUserAgent(tabId: String) {
-            tabManager.tabs[tabId]?.let { webViewController.setDesktopUserAgent(it) }
+            tabManager.tabs[tabId]?.webView?.let { webViewController.setDesktopUserAgent(it) }
         }
         @JavascriptInterface
         fun setMobileUserAgent(tabId: String) {
-            tabManager.tabs[tabId]?.let { webViewController.setMobileUserAgent(it) }
+            tabManager.tabs[tabId]?.webView?.let { webViewController.setMobileUserAgent(it) }
         }
 
         // ---- Reader Mode ----

@@ -6,6 +6,7 @@ import android.webkit.WebView
 import android.widget.Toast
 import org.json.JSONArray
 import org.json.JSONObject
+import java.util.LinkedList
 
 /**
  * WebView ile ilgili tüm iş mantığını tek sınıf altında toplar:
@@ -15,9 +16,12 @@ import org.json.JSONObject
  */
 class WebViewController(private val context: android.content.Context) {
 
+    companion object {
+        private const val MAX_CONSOLE_LOGS = 200
+    }
+
     // ---------- Geliştirici Konsolu ----------
     private val consoleLogs = LinkedList<String>()
-    private const val MAX_CONSOLE_LOGS = 200
 
     fun addConsoleLog(message: String, level: String = "log") {
         val entry = "[$level] $message"
@@ -68,10 +72,12 @@ class WebViewController(private val context: android.content.Context) {
             if (eqIdx > 0) {
                 val name = trimmed.substring(0, eqIdx).trim()
                 if (name == cookieName) {
-                    cookieManager.removeCookie(url, trimmed, null)
+                    // Çerezi süresi dolmuş olarak ayarla (silme etkisi)
+                    cookieManager.setCookie(url, "$cookieName=; Expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/")
                 }
             }
         }
+        cookieManager.flush()
         Toast.makeText(context, "Çerez silindi: $cookieName", Toast.LENGTH_SHORT).show()
     }
 
