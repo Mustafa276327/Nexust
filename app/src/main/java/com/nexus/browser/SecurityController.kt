@@ -2,11 +2,12 @@ package com.nexus.browser
 
 import org.json.JSONArray
 import org.json.JSONObject
+import android.security.keystore.KeyGenParameterSpec
+import android.security.keystore.KeyProperties
 import java.security.KeyStore
 import java.security.MessageDigest
 import javax.crypto.Cipher
 import javax.crypto.KeyGenerator
-import javax.crypto.KeyProperties
 import javax.crypto.SecretKey
 import javax.crypto.spec.GCMParameterSpec
 

@@ -45,9 +45,10 @@ private const val APP_VERSION_CODE = 3
 
 class MainActivity : Activity() {
 
-    // NEXUS köprüsü (Companion App) bildirim kanalları
-    private const val NEXUS_KANAL = "nexus_bridge"
-    private const val NEXUS_KANAL_YUKSEK = "nexus_bridge_yuksek"
+    companion object {
+        private const val NEXUS_KANAL = "nexus_bridge"
+        private const val NEXUS_KANAL_YUKSEK = "nexus_bridge_yuksek"
+    }
 
 
     // =========================================================
@@ -225,9 +226,9 @@ class MainActivity : Activity() {
         if (requestCode == 1002 && resultCode == Activity.RESULT_OK && data != null) {
             val contents = data.getStringExtra("SCAN_RESULT")
             val format = data.getStringExtra("SCAN_RESULT_FORMAT")
-            if (contents.isNotBlank()) {
+            if (contents?.isNotBlank() == true) {
                 val tab = tabManager.activeTabId?.let { tabManager.tabs[it] }
-                tab?.webView?.loadUrl(contents)
+                tab?.webView?.loadUrl(contents ?: "")
                 Toast.makeText(this@MainActivity, "QR kod algılandı: $contents", Toast.LENGTH_SHORT).show()
             }
         }
