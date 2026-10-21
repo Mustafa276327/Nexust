@@ -432,8 +432,8 @@ class TabManager(
         // ---------- DuckDuckGo HTML sonuçlarını ayrıştır ----------
         private fun parseDuckDuckGoResults(html: String): String {
             val out = JSONArray()
-            val linkRegex = Regex("""<a class="result__a" href="([^"]+)"[^>]*>(.*?)</a>""", RegexOption.DOTALL)
-            val snippetRegex = Regex("""<a class="result__snippet"[^>]*>(.*?)</a>""", RegexOption.DOTALL)
+            val linkRegex = Regex("""<a class="result__a" href="([^"]+)"[^>]*>(.*?)</a>""", RegexOption.DOT_MATCHES_ALL)
+            val snippetRegex = Regex("""<a class="result__snippet"[^>]*>(.*?)</a>""", RegexOption.DOT_MATCHES_ALL)
 
             val links = linkRegex.findAll(html).map { it.groupValues }
             val snippets = snippetRegex.findAll(html).map { it.groupValues[1].replace(Regex("<[^>]*>"), "").trim() }
