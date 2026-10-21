@@ -399,7 +399,7 @@ class TabManager(
             pushNavStateToTop(tab, view)
             trimCacheIfNeeded()
 
-            // ---- Yerel arama sayfası tespiti: DuckDuckGo'dan sonuçları arkadan çek, kendi sayfamıza enjekte et ----
+            // ---- Yerel arama sayfası tespiti: DuckDuckGo lite'dan sonuçları arkadan çek, kendi sayfamıza enjekte et ----
             if (url != null && url.startsWith("file:///android_asset/search/")) {
                 val q = android.net.Uri.parse(url).getQueryParameter("q")
                 if (q.isNullOrBlank()) return
@@ -407,15 +407,17 @@ class TabManager(
                 Thread {
                     try {
                         val encodedQ = URLEncoder.encode(currentQ, "UTF-8")
-                        val conn = URL("https://html.duckduckgo.com/html/?q=$encodedQ").openConnection() as HttpURLConnection
+                        val conn = URL("https://lite.duckduckgo.com/lite/?q=$encodedQ").openConnection() as HttpURLConnection
                         conn.connectTimeout = 10000
                         conn.readTimeout = 15000
                         conn.setRequestProperty("User-Agent", "Mozilla/5.0 (Linux; Android 10; Mobile) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36")
+                        conn.setRequestProperty("Accept", "text/html,application/xhtml+xml")
+                        conn.setRequestProperty("Accept-Language", "tr-TR,tr;q=0.9,en;q=0.8")
                         val code = conn.responseCode
                         if (code in 200..299) {
                             val html = conn.inputStream.bufferedReader().use { it.readText() }
                             conn.disconnect()
-                            val resultsJson = parseDuckDuckGoResults(html)
+                            val resultsJson = parseDuckDuckGoLite(html)
                             view.post { view.evaluateJavascript("window.NexusSearch && NexusSearch.onResults(${JSONObject.quote(resultsJson)})", null) }
                         } else {
                             conn.disconnect()
@@ -429,11 +431,14 @@ class TabManager(
             }
         }
 
-        // ---------- DuckDuckGo HTML sonuçlarını ayrıştır ----------
-        private fun parseDuckDuckGoResults(html: String): String {
+        // ---------- DuckDuckGo lite HTML sonuçlarını ayrıştır ----------
+        private fun parseDuckDuckGoLite(html: String): String {
             val out = JSONArray()
-            val linkRegex = Regex("""<a class="result__a" href="([^"]+)"[^>]*>(.*?)</a>""", RegexOption.DOT_MATCHES_ALL)
-            val snippetRegex = Regex("""<a class="result__snippet"[^>]*>(.*?)</a>""", RegexOption.DOT_MATCHES_ALL)
+
+            // result-link sınıfındaki bağlantıları bul (DuckDuckGo lite yapısı)
+            val linkRegex = Regex("""<a[^>]*class="[^"]*result-link[^"]*"[^>]*href="([^"]+)"[^>]*>(.*?)</a>""", RegexOption.DOT_MATCHES_ALL or RegexOption.IGNORE_CASE)
+            // result-snippet sınıfındaki açıklamaları bul
+            val snippetRegex = Regex("""<a[^>]*class="[^"]*result-snippet[^"]*"[^>]*>(.*?)</a>""", RegexOption.DOT_MATCHES_ALL or RegexOption.IGNORE_CASE)
 
             val links = linkRegex.findAll(html).map { it.groupValues }.toList()
             val snippets = snippetRegex.findAll(html).map { it.groupValues[1].replace(Regex("<[^>]*>"), "").trim() }.toList()
@@ -441,12 +446,34 @@ class TabManager(
             for (i in links.indices) {
                 if (i >= 10) break
                 val groups = links[i]
-                val url = groups[1]
-                val title = groups[2].replace(Regex("<[^>]*>"), "").trim()
+                val rawUrl = groups[1]
+                var title = groups[2].replace(Regex("<[^>]*>"), "").trim()
+
+                // DuckDuckGo yönlendirme URL'sini çöz: https://duckduckgo.com/l/?uddg=ENCODED_URL&...
+                var realUrl = rawUrl
+                if (rawUrl.contains("uddg=")) {
+                    try {
+                        val uddgMatch = Regex("uddg=([^&]+)").find(rawUrl)
+                        if (uddgMatch != null) {
+                            val encoded = uddgMatch.groupValues[1]
+                            realUrl = java.net.URLDecoder.decode(encoded, "UTF-8")
+                            // Bazı durumda iki kat encode edilmiş olabilir
+                            if (realUrl.contains("%")) {
+                                realUrl = java.net.URLDecoder.decode(realUrl, "UTF-8")
+                            }
+                        }
+                    } catch (e: Exception) {
+                        realUrl = rawUrl
+                    }
+                }
+
+                if (realUrl.isBlank() || title.isBlank()) continue
+
                 val snippet = if (i < snippets.size) snippets[i] else ""
+
                 out.put(JSONObject().apply {
                     put("title", title)
-                    put("url", url)
+                    put("url", realUrl)
                     put("snippet", snippet)
                 })
             }
