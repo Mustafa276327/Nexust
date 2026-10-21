@@ -79,42 +79,8 @@
       if (v) window.location.href = 'file:///android_asset/search/index.html?q=' + encodeURIComponent(v);
     });
 
-    window.NexusSearch = {
-      onResults(raw) {
-        gotResults = true;
-        const box = document.getElementById('results');
-        if (raw === 'NOKEY') {
-          box.innerHTML = '<div class="state">Menü → Arama Ayarları bölümünden API anahtarı ve cx girin.</div>';
-          return;
-        }
-        if (raw.startsWith('ERROR:')) {
-          let msg = raw.slice(6);
-          try {
-            const errJson = JSON.parse(msg);
-            if (errJson.error && errJson.error.message) msg = errJson.error.message;
-          } catch (e) {}
-          box.innerHTML = '<div class="state">Arama sırasında bir sorun oluştu.<br>' + escapeHtml(msg) + '</div>';
-          return;
-        }
-        try {
-          const data = JSON.parse(raw);
-          const items = data.items || [];
-          if (!items.length) { box.innerHTML = '<div class="state">Sonuç bulunamadı</div>'; return; }
-          box.innerHTML = items.map(it => `
-            <a class="result-card" href="${escapeHtml(it.link)}">
-              <div class="result-url">${escapeHtml(it.displayLink || it.link)}</div>
-              <div class="result-title">${escapeHtml(it.title || '')}</div>
-              <div class="result-snippet">${escapeHtml(it.snippet || '')}</div>
-            </a>
-          `).join('');
-        } catch (e) {
-          box.innerHTML = '<div class="state">Sonuçlar okunamadı</div>';
-        }
-      }
-    };
-
-    // Arama sayfası yüklendiğinde arama Kotlin tarafında (TabManager.onPageFinished) başlatılır.
-    // window.AndroidHost artık buradan çağrılmaz.
+    // Arama, Kotlin tarafında (TabManager) DuckDuckGo üzerinden başlatılır.
+    // window.AndroidHost buradan çağrılmaz.
 
     let gotResults = false;
     setTimeout(() => {

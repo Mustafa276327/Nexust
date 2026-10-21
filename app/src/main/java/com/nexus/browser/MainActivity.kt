@@ -418,36 +418,7 @@ class MainActivity : Activity() {
             }.start()
         }
 
-        // ---- Faz 5: Google Custom Search ----
-        @JavascriptInterface
-        fun performSearch(tabId: String, query: String) {
-            val s = settingsManager.getSettingsObj()
-            val key = s.optString("customSearchKey", "")
-            val cx = s.optString("customSearchCx", "")
-            if (key.isBlank() || cx.isBlank()) {
-                runOnUiThread {
-                    val emptyJson = "{\"items\":[]}"
-                    tabManager.tabs[tabId]?.webView?.evaluateJavascript("window.NexusSearch && NexusSearch.onResults(${jsStr(emptyJson)})", null)
-                }
-                return
-            }
-            Thread {
-                val result = try {
-                    val q = java.net.URLEncoder.encode(query, "UTF-8")
-                    val conn = URL("https://www.googleapis.com/customsearch/v1?key=$key&cx=$cx&q=$q").openConnection() as HttpURLConnection
-                    conn.connectTimeout = 10000; conn.readTimeout = 15000
-                    val code = conn.responseCode
-                    val text = (if (code in 200..299) conn.inputStream else conn.errorStream).bufferedReader().use { it.readText() }
-                    conn.disconnect()
-                    if (code !in 200..299) "ERROR:$text" else text
-                } catch (e: Exception) { "ERROR:${e.message}" }
-                runOnUiThread {
-                    tabManager.tabs[tabId]?.webView?.evaluateJavascript("window.NexusSearch && NexusSearch.onResults(${jsStr(result)})", null)
-                }
-            }.start()
-        }
-
-        // ---- Faz 5: Canlı arama önerileri (Google Suggest, anahtarsız) ----
+        // ---- Faz 5: Canlı arama önerileri (DuckDuckGo, anahtarsız) ----
         @JavascriptInterface
         fun fetchLiveSuggestions(query: String) {
             if (query.isBlank()) return

@@ -585,35 +585,17 @@ function renderAiCategory() {
   document.getElementById('goGroup').onclick = () => go('group', 'Sekmeleri Grupla');
 }
 
-// ---------- Arama Ayarları (Custom Search) ----------
+// ---------- Arama Ayarları ----------
 function renderSearchSettings() {
   const s = JSON.parse(window.AndroidHost.getSettingsJson());
-  const engines = [['google', 'Google'], ['duckduckgo', 'DuckDuckGo'], ['bing', 'Bing']];
   setBody(`
     <div class="section-title">Arama Motoru</div>
-    <div class="pw-form">
-      <select id="searchEngine">
-        ${engines.map(([v, l]) => `<option value="${v}" ${s.searchEngine === v ? 'selected' : ''}>${l}</option>`).join('')}
-      </select>
-      <div class="empty" style="font-size:12px;margin-top:6px;">Bu motor adres çubuğundaki aramalar için kullanılır.</div>
+    <div class="empty" style="margin:0;">
+      Aramalar <b>DuckDuckGo</b> üzerinden yapılır.<br>
+      DuckDuckGo logosu gizlidir; sonuçlar Nexus tasarımında gösterilir.<br><br>
+      API anahtarı gerekmez.
     </div>
-
-    <div class="section-title">Google Custom Search (isteğe bağlı)</div>
-    <div class="pw-form">
-      <input id="csKey" placeholder="API anahtarı" type="password" value="${escapeHtml(s.customSearchKey || '')}" />
-      <input id="csCx" placeholder="Arama motoru kimliği (cx)" value="${escapeHtml(s.customSearchCx || '')}" />
-      <button class="primary-btn" id="saveCsBtn">Kaydet</button>
-    </div>
-    <div class="empty" style="margin:0;">API anahtarı ve cx girilince arama sonuçları Google Custom Search'ten gelir ve Nexus tasarımında gösterilir. Boş bırakırsan arama sonuçsuz görünür ("API anahtarı ve cx girin" uyarısı).</div>
   `);
-  document.getElementById('searchEngine').addEventListener('change', (e) => {
-    setSetting('searchEngine', e.target.value);
-  });
-  document.getElementById('saveCsBtn').addEventListener('click', () => {
-    setSetting('customSearchKey', document.getElementById('csKey').value.trim());
-    setSetting('customSearchCx', document.getElementById('csCx').value.trim());
-    window.AndroidHost.closePanel();
-  });
 }
 
 // ---------- Kişiselleştirme ----------

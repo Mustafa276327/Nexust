@@ -5,9 +5,6 @@ import android.content.ClipData
 import android.content.Context
 import android.graphics.Bitmap
 import android.net.Uri
-import java.net.HttpURLConnection
-import java.net.URL
-import java.net.URLEncoder
 import java.security.SecureRandom
 import java.util.LinkedList
 import android.view.View
@@ -399,37 +396,27 @@ class TabManager(
             pushNavStateToTop(tab, view)
             trimCacheIfNeeded()
 
-            // ---- Yerel arama sayfası tespiti: Kotlin tarafında aramayı başlat ----
+            // ---- Yerel arama sayfası tespiti: DuckDuckGo'ya yönlendir ----
             if (url != null && url.startsWith("file:///android_asset/search/")) {
                 val q = android.net.Uri.parse(url).getQueryParameter("q")
                 if (q.isNullOrBlank()) return
-                val s = settingsManager.getSettingsObj()
-                val key = s.optString("customSearchKey", "")
-                val cx = s.optString("customSearchCx", "")
-                if (key.isBlank() || cx.isBlank()) {
-                    view.post { view.evaluateJavascript("window.NexusSearch && NexusSearch.onResults(${JSONObject.quote("NOKEY")})", null) }
-                    return
+                val encodedQ = java.net.URLEncoder.encode(q, "UTF-8")
+                view.post { view.loadUrl("https://html.duckduckgo.com/html/?q=$encodedQ") }
+                return
+            }
+
+            // ---- DuckDuckGo logolarını gizle (Nexus branded görünüm) ----
+            if (url != null && url.contains("duckduckgo.com")) {
+                view.post {
+                    view.evaluateJavascript("""
+                        (function(){
+                            var s = document.createElement('style');
+                            s.innerHTML = '#logo_homepage_link, .logo, .result__logo, [class*="logo"], .header__logo, #logo, .duckduckgo-logo, .header__logo__wordmark, .header__logo__tagline, #logo_wrapper, .header__logo { display: none !important; visibility: hidden !important; }';
+                            s.setAttribute('data-nexus-hide-ddg', 'true');
+                            document.head.appendChild(s);
+                        })();
+                    """, null)
                 }
-                val currentQ = q
-                Thread {
-                    try {
-                        val encodedQ = URLEncoder.encode(currentQ, "UTF-8")
-                        val conn = URL("https://www.googleapis.com/customsearch/v1?key=$key&cx=$cx&q=$encodedQ").openConnection() as HttpURLConnection
-                        conn.connectTimeout = 10000
-                        conn.readTimeout = 15000
-                        val code = conn.responseCode
-                        val stream = if (code in 200..299) conn.inputStream else conn.errorStream
-                        val text = stream?.bufferedReader()?.use { it.readText() } ?: ""
-                        conn.disconnect()
-                        if (code !in 200..299) {
-                            view.post { view.evaluateJavascript("window.NexusSearch && NexusSearch.onResults(${JSONObject.quote("ERROR:HTTP $code $text")})", null) }
-                        } else {
-                            view.post { view.evaluateJavascript("window.NexusSearch && NexusSearch.onResults(${JSONObject.quote(text)})", null) }
-                        }
-                    } catch (e: Exception) {
-                        view.post { view.evaluateJavascript("window.NexusSearch && NexusSearch.onResults(${JSONObject.quote("ERROR:${e.message}")})", null) }
-                    }
-                }.start()
             }
         }
     }

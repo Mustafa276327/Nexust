@@ -24,7 +24,7 @@ class SettingsManager(private val prefs: SharedPreferences, private val context:
             put("groqApiKey", ""); put("groqModel", "llama-3.3-70b-versatile")
             put("updateCheckUrl", "")
             put("customSearchKey", ""); put("customSearchCx", "")
-            put("theme", "light"); put("darkMode", false); put("searchEngine", "google")
+            put("theme", "light"); put("darkMode", false); put("searchEngine", "duckduckgo")
             put("lang", "tr")
             put("nexusUrl", "http://127.0.0.1:8080"); put("nexusToken", ""); put("nexusSync", true)
         }
