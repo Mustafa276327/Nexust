@@ -5,6 +5,9 @@ import android.content.ClipData
 import android.content.Context
 import android.graphics.Bitmap
 import android.net.Uri
+import java.net.HttpURLConnection
+import java.net.URL
+import java.net.URLEncoder
 import java.security.SecureRandom
 import java.util.LinkedList
 import android.view.View
@@ -396,40 +399,58 @@ class TabManager(
             pushNavStateToTop(tab, view)
             trimCacheIfNeeded()
 
-            // ---- Yerel arama sayfası tespiti: DuckDuckGo'ya yönlendir ----
+            // ---- Yerel arama sayfası tespiti: DuckDuckGo'dan sonuçları arkadan çek, kendi sayfamıza enjekte et ----
             if (url != null && url.startsWith("file:///android_asset/search/")) {
                 val q = android.net.Uri.parse(url).getQueryParameter("q")
                 if (q.isNullOrBlank()) return
-                val encodedQ = java.net.URLEncoder.encode(q, "UTF-8")
-                view.post { view.loadUrl("https://html.duckduckgo.com/html/?q=$encodedQ") }
+                val currentQ = q
+                Thread {
+                    try {
+                        val encodedQ = URLEncoder.encode(currentQ, "UTF-8")
+                        val conn = URL("https://html.duckduckgo.com/html/?q=$encodedQ").openConnection() as HttpURLConnection
+                        conn.connectTimeout = 10000
+                        conn.readTimeout = 15000
+                        conn.setRequestProperty("User-Agent", "Mozilla/5.0 (Linux; Android 10; Mobile) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36")
+                        val code = conn.responseCode
+                        if (code in 200..299) {
+                            val html = conn.inputStream.bufferedReader().use { it.readText() }
+                            conn.disconnect()
+                            val resultsJson = parseDuckDuckGoResults(html)
+                            view.post { view.evaluateJavascript("window.NexusSearch && NexusSearch.onResults(${JSONObject.quote(resultsJson)})", null) }
+                        } else {
+                            conn.disconnect()
+                            view.post { view.evaluateJavascript("window.NexusSearch && NexusSearch.onResults(${JSONObject.quote("ERROR:HTTP $code")})", null) }
+                        }
+                    } catch (e: Exception) {
+                        view.post { view.evaluateJavascript("window.NexusSearch && NexusSearch.onResults(${JSONObject.quote("ERROR:${e.message}")})", null) }
+                    }
+                }.start()
                 return
             }
+        }
 
-            // ---- DuckDuckGo tüm branding ve navigasyonu gizle (sadece Nexus görünsün) ----
-            if (url != null && url.contains("duckduckgo.com")) {
-                view.post {
-                    view.evaluateJavascript("""
-                        (function(){
-                            var css = `
-                                #logo_homepage_link, .logo, .result__logo, [class*="logo"], .header__logo, #logo, .duckduckgo-logo,
-                                .header__logo__wordmark, .header__logo__tagline, #logo_wrapper, .logo-link,
-                                header a[href*="duckduckgo"], #logo_homepage, .result--logo, .logo__homepage,
-                                .web-result__logo, .logo--homepage, .header__logo__image, .logo__image, #logo_img,
-                                .nav-link, .nav__link, .nav__item, .header__nav, #nav, .nav, .nav__logo,
-                                .header__search, .searchbar__icon, #searchbar_icon, .search__button,
-                                .result__logo, .logo_homepage_link, .logo__icon, .logo__text,
-                                .header__logo__image, .header__logo__tagline, .header__logo__wordmark
-                                { display: none !important; visibility: hidden !important; opacity: 0 !important;
-                                  width: 0 !important; height: 0 !important; overflow: hidden !important; }
-                            `;
-                            var s = document.createElement('style');
-                            s.innerHTML = css;
-                            s.setAttribute('data-nexus-hide-ddg', 'true');
-                            document.head.appendChild(s);
-                        })();
-                    """, null)
-                }
+        // ---------- DuckDuckGo HTML sonuçlarını ayrıştır ----------
+        private fun parseDuckDuckGoResults(html: String): String {
+            val out = JSONArray()
+            val linkRegex = Regex("""<a class="result__a" href="([^"]+)"[^>]*>(.*?)</a>""", RegexOption.DOTALL)
+            val snippetRegex = Regex("""<a class="result__snippet"[^>]*>(.*?)</a>""", RegexOption.DOTALL)
+
+            val links = linkRegex.findAll(html).map { it.groupValues }
+            val snippets = snippetRegex.findAll(html).map { it.groupValues[1].replace(Regex("<[^>]*>"), "").trim() }
+
+            for (i in links.indices) {
+                if (i >= 10) break
+                val groups = links[i]
+                val url = groups[1]
+                val title = groups[2].replace(Regex("<[^>]*>"), "").trim()
+                val snippet = if (i < snippets.size) snippets[i] else ""
+                out.put(JSONObject().apply {
+                    put("title", title)
+                    put("url", url)
+                    put("snippet", snippet)
+                })
             }
+            return out.toString()
         }
     }
 }

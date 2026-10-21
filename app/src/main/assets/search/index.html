@@ -79,15 +79,36 @@
       if (v) window.location.href = 'file:///android_asset/search/index.html?q=' + encodeURIComponent(v);
     });
 
-    // Arama, Kotlin tarafında (TabManager) DuckDuckGo üzerinden başlatılır.
-    // window.AndroidHost buradan çağrılmaz.
-
-    let gotResults = false;
-    setTimeout(() => {
-      if (!gotResults) {
-        document.getElementById('results').innerHTML = '<div class="state">Yanıt alınamadı. Lütfen tekrar deneyin.</div>';
+    window.NexusSearch = {
+      onResults(raw) {
+        const box = document.getElementById('results');
+        if (raw === 'NOKEY') {
+          box.innerHTML = '<div class="state">Arama motoru yapılandırılmamış.</div>';
+          return;
+        }
+        if (raw.startsWith('ERROR:')) {
+          box.innerHTML = '<div class="state">Arama sırasında bir sorun oluştu.<br>' + escapeHtml(raw.slice(6)) + '</div>';
+          return;
+        }
+        try {
+          const data = JSON.parse(raw);
+          const items = data || [];
+          if (!items.length) { box.innerHTML = '<div class="state">Sonuç bulunamadı</div>'; return; }
+          box.innerHTML = items.map(it => `
+            <a class="result-card" href="${escapeHtml(it.url || '')}">
+              <div class="result-url">${escapeHtml(it.url || '')}</div>
+              <div class="result-title">${escapeHtml(it.title || '')}</div>
+              <div class="result-snippet">${escapeHtml(it.snippet || '')}</div>
+            </a>
+          `).join('');
+        } catch (e) {
+          box.innerHTML = '<div class="state">Sonuçlar okunamadı</div>';
+        }
       }
-    }, 20000);
+    };
+
+    // Arama, Kotlin tarafında (TabManager) DuckDuckGo üzerinden başlatılır ve sonuçlar buraya enjekte edilir.
+    // window.AndroidHost buradan çağrılmaz.
 
   </script>
 </body>
