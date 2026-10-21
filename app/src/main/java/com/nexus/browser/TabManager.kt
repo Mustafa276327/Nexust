@@ -405,13 +405,25 @@ class TabManager(
                 return
             }
 
-            // ---- DuckDuckGo tüm branding'ini gizle (sadece Nexus görünsün) ----
+            // ---- DuckDuckGo tüm branding ve navigasyonu gizle (sadece Nexus görünsün) ----
             if (url != null && url.contains("duckduckgo.com")) {
                 view.post {
                     view.evaluateJavascript("""
                         (function(){
+                            var css = `
+                                #logo_homepage_link, .logo, .result__logo, [class*="logo"], .header__logo, #logo, .duckduckgo-logo,
+                                .header__logo__wordmark, .header__logo__tagline, #logo_wrapper, .logo-link,
+                                header a[href*="duckduckgo"], #logo_homepage, .result--logo, .logo__homepage,
+                                .web-result__logo, .logo--homepage, .header__logo__image, .logo__image, #logo_img,
+                                .nav-link, .nav__link, .nav__item, .header__nav, #nav, .nav, .nav__logo,
+                                .header__search, .searchbar__icon, #searchbar_icon, .search__button,
+                                .result__logo, .logo_homepage_link, .logo__icon, .logo__text,
+                                .header__logo__image, .header__logo__tagline, .header__logo__wordmark
+                                { display: none !important; visibility: hidden !important; opacity: 0 !important;
+                                  width: 0 !important; height: 0 !important; overflow: hidden !important; }
+                            `;
                             var s = document.createElement('style');
-                            s.innerHTML = '#logo_homepage_link, .logo, .result__logo, [class*="logo"], .header__logo, #logo, .duckduckgo-logo, .header__logo__wordmark, .header__logo__tagline, #logo_wrapper, .header__logo, .logo-link, header a[href*="duckduckgo"], #logo_homepage, #logo_homepage_link, .result--logo, .logo__homepage, .web-result__logo, .logo--homepage, .header__logo__image, .logo__image, #logo_img { display: none !important; visibility: hidden !important; opacity: 0 !important; width: 0 !important; height: 0 !important; }';
+                            s.innerHTML = css;
                             s.setAttribute('data-nexus-hide-ddg', 'true');
                             document.head.appendChild(s);
                         })();
