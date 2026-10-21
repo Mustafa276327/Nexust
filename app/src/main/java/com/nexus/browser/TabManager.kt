@@ -405,13 +405,13 @@ class TabManager(
                 return
             }
 
-            // ---- DuckDuckGo logolarını gizle (Nexus branded görünüm) ----
+            // ---- DuckDuckGo tüm branding'ini gizle (sadece Nexus görünsün) ----
             if (url != null && url.contains("duckduckgo.com")) {
                 view.post {
                     view.evaluateJavascript("""
                         (function(){
                             var s = document.createElement('style');
-                            s.innerHTML = '#logo_homepage_link, .logo, .result__logo, [class*="logo"], .header__logo, #logo, .duckduckgo-logo, .header__logo__wordmark, .header__logo__tagline, #logo_wrapper, .header__logo { display: none !important; visibility: hidden !important; }';
+                            s.innerHTML = '#logo_homepage_link, .logo, .result__logo, [class*="logo"], .header__logo, #logo, .duckduckgo-logo, .header__logo__wordmark, .header__logo__tagline, #logo_wrapper, .header__logo, .logo-link, header a[href*="duckduckgo"], #logo_homepage, #logo_homepage_link, .result--logo, .logo__homepage, .web-result__logo, .logo--homepage, .header__logo__image, .logo__image, #logo_img { display: none !important; visibility: hidden !important; opacity: 0 !important; width: 0 !important; height: 0 !important; }';
                             s.setAttribute('data-nexus-hide-ddg', 'true');
                             document.head.appendChild(s);
                         })();
