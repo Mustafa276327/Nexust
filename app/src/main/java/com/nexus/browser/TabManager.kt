@@ -436,9 +436,9 @@ class TabManager(
             val out = JSONArray()
 
             // result-link sınıfındaki bağlantıları bul (DuckDuckGo lite yapısı)
-            val linkRegex = Regex("""<a[^>]*class="[^"]*result-link[^"]*"[^>]*href="([^"]+)"[^>]*>(.*?)</a>""", RegexOption.DOT_MATCHES_ALL or RegexOption.IGNORE_CASE)
+            val linkRegex = Regex("(?is)<a[^>]*class="[^"]*result-link[^"]*"[^>]*href="([^"]+)"[^>]*>(.*?)</a>")
             // result-snippet sınıfındaki açıklamaları bul
-            val snippetRegex = Regex("""<a[^>]*class="[^"]*result-snippet[^"]*"[^>]*>(.*?)</a>""", RegexOption.DOT_MATCHES_ALL or RegexOption.IGNORE_CASE)
+            val snippetRegex = Regex("(?is)<a[^>]*class="[^"]*result-snippet[^"]*"[^>]*>(.*?)</a>")
 
             val links = linkRegex.findAll(html).map { it.groupValues }.toList()
             val snippets = snippetRegex.findAll(html).map { it.groupValues[1].replace(Regex("<[^>]*>"), "").trim() }.toList()
