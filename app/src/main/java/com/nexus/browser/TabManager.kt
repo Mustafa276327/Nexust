@@ -435,8 +435,8 @@ class TabManager(
             val linkRegex = Regex("""<a class="result__a" href="([^"]+)"[^>]*>(.*?)</a>""", RegexOption.DOT_MATCHES_ALL)
             val snippetRegex = Regex("""<a class="result__snippet"[^>]*>(.*?)</a>""", RegexOption.DOT_MATCHES_ALL)
 
-            val links = linkRegex.findAll(html).map { it.groupValues }
-            val snippets = snippetRegex.findAll(html).map { it.groupValues[1].replace(Regex("<[^>]*>"), "").trim() }
+            val links = linkRegex.findAll(html).map { it.groupValues }.toList()
+            val snippets = snippetRegex.findAll(html).map { it.groupValues[1].replace(Regex("<[^>]*>"), "").trim() }.toList()
 
             for (i in links.indices) {
                 if (i >= 10) break
